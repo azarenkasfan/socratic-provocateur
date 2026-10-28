@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #131518;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  overscroll-behavior-y: none;
+  font-family: "Geist", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+[role="radio"] {
+  touch-action: manipulation;
+}
+
+/* Плавное расширение поля ввода (высоту выставляет AutoTextarea) */
+.sdv-autosize {
+  transition: height 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sdv-autosize {
+    transition: none;
+  }
+}
+
+/* Ползунок громкости в палитре приложения */
+.sdv-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.sdv-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.sdv-range::-moz-range-track {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.sdv-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  width: 14px;
+  margin-top: -5.5px;
+  border-radius: 9999px;
+  border: 0;
+  background: #e2d7c3;
+  box-shadow: 0 0 0 4px rgba(226, 215, 195, 0.15);
+}
+.sdv-range::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border-radius: 9999px;
+  border: 0;
+  background: #e2d7c3;
+  box-shadow: 0 0 0 4px rgba(226, 215, 195, 0.15);
+}
