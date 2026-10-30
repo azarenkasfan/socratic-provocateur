@@ -10,6 +10,7 @@ import {
   CircleAlert,
   CornerDownLeft,
   Copy,
+  Crosshair,
   Download,
   Flame,
   Loader2,
@@ -23,7 +24,9 @@ import {
    КОНФИГУРАЦИЯ
 ──────────────────────────────────────────────────────────────────────────── */
 
-const MAX_STEPS = 4; // длина дуэли
+const BASE_STEPS = 4; // базовая длина дуэли
+const EXTEND_STEPS = 3; // на сколько шагов продлевает «Вскрыть суть»
+const MAX_TOTAL_STEPS = 100; // защита от испорченного localStorage
 const MIN_STEPS_TO_FINISH = 3; // с какого шага можно завершить досрочно
 
 const LS_SESSION = "sdv.session.v1";
@@ -113,12 +116,16 @@ const SYSTEM_PROMPT = `Ты — «Сократический провокато�
 — Если человек уходит от ответа, мягко, но точно укажи на это.
 — Если сообщение не содержит мысли, убеждения или страха, предложи назвать одну такую мысль.`;
 
-function buildSystemPrompt(step) {
+const DEEP_DIALOG_PROMPT = `Пользователь решил не останавливаться на базовом итоге и нажал "Вскрыть суть". Перестань разбирать поверхностные отговорки. Бей точно в корень выявленного противоречия, задавай бескомпромиссные, точечные сократические вопросы, заставляющие посмотреть правде в глаза и признать цену собственного бездействия. Сохраняй правила выше: не давай прямых советов, не мотивируй и не предлагай планов действий — бей вопросом точно в корень самообмана.`;
+
+function buildSystemPrompt(step, totalSteps) {
   const note =
-    step >= MAX_STEPS
-      ? `\n\nЭто финальный шаг (${step} из ${MAX_STEPS}). Подведи итог одной ироничной фразой и задай последний вопрос — такой, который человек унесёт с собой.`
-      : `\n\nСейчас шаг ${step} из ${MAX_STEPS}.`;
-  return SYSTEM_PROMPT + note;
+    step >= totalSteps
+      ? `\n\nЭто финальный шаг (${step} из ${totalSteps}). Подведи итог одной ироничной фразой и задай последний вопрос — такой, который человек унесёт с собой.`
+      : `\n\nСейчас шаг ${step} из ${totalSteps}.`;
+  // totalSteps > BASE_STEPS: кнопку нажали, даже если продление началось с шага ≤ 4
+  const deep = step > BASE_STEPS || totalSteps > BASE_STEPS ? `\n\n${DEEP_DIALOG_PROMPT}` : "";
+  return SYSTEM_PROMPT + note + deep;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -137,7 +144,7 @@ function httpErrorMessage(status, detail) {
   return `${base} (${status})${detail ? ` — ${detail.slice(0, 140)}` : ""}`;
 }
 
-async function askLLM(history, step) {
+async function askLLM(history, step, totalSteps) {
   if (!API_KEY) throw new Error("API-ключ не задан (VITE_API_KEY)");
 
   const ctrl = new AbortController();
@@ -156,7 +163,7 @@ async function askLLM(history, step) {
         temperature: 0.85,
         max_tokens: 400,
         messages: [
-          { role: "system", content: buildSystemPrompt(step) },
+          { role: "system", content: buildSystemPrompt(step, totalSteps) },
           ...history.map((m) => ({ role: m.role, content: m.content })),
         ],
       }),
@@ -215,14 +222,25 @@ function writeLS(key, value) {
 
 function loadInitialSession() {
   const s = readLS(LS_SESSION, null);
-  const empty = { messages: [], insight: null, finished: false, draft: "" };
+  const empty = { messages: [], insight: null, finished: false, draft: "", totalSteps: BASE_STEPS };
   if (!s || !Array.isArray(s.messages)) return empty;
 
   // сессия оборвалась на вопросе без ответа — возвращаем текст в поле ввода
   const messages = [...s.messages];
   let draft = "";
   if (messages.at(-1)?.role === "user") draft = messages.pop().content;
-  return { messages, insight: s.insight ?? null, insightNo: s.insightNo ?? null, finished: !!s.finished, draft };
+  const totalSteps =
+    Number.isInteger(s.totalSteps) && s.totalSteps > BASE_STEPS && s.totalSteps <= MAX_TOTAL_STEPS && (s.totalSteps - BASE_STEPS) % EXTEND_STEPS === 0
+      ? s.totalSteps
+      : BASE_STEPS;
+  return {
+    messages,
+    insight: s.insight ?? null,
+    insightNo: s.insightNo ?? null,
+    finished: !!s.finished,
+    draft,
+    totalSteps,
+  };
 }
 
 function nextSessionNo() {
@@ -945,7 +963,7 @@ function Composer({
   );
 }
 
-function GhostButton({ children, onClick, icon: Icon, danger, disabled }) {
+function GhostButton({ children, onClick, icon: Icon, danger, accent, disabled }) {
   return (
     <motion.button
       type="button"
@@ -956,6 +974,8 @@ function GhostButton({ children, onClick, icon: Icon, danger, disabled }) {
       className={`inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-[13px] transition-[border-color,background-color,color] duration-300 ${
         disabled
           ? "cursor-wait border-white/[0.06] text-zinc-500"
+          : accent
+          ? "border-[#e2d7c3]/30 bg-[#e2d7c3]/[0.04] text-[#e2d7c3] hover:border-[#e2d7c3]/60 hover:bg-[#e2d7c3]/[0.1]"
           : danger
           ? "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:border-red-400/40 hover:bg-red-400/[0.06] hover:text-red-300"
           : "border-white/[0.08] bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:bg-white/[0.06] hover:text-zinc-100"
@@ -968,11 +988,12 @@ function GhostButton({ children, onClick, icon: Icon, danger, disabled }) {
   );
 }
 
-/* 4 сегмента: заполняются латунью по мере прохождения сессии */
+/* сегменты заполняются латунью по мере прохождения сессии; при продлении сужаются, чтобы не ломать вёрстку */
 function StepBar({ done, total }) {
+  const segment = total > 7 ? "w-3 sm:w-5" : total > 4 ? "w-5 sm:w-7" : "w-7 sm:w-10";
   return (
     <div
-      className="flex items-center gap-1.5"
+      className={`flex min-w-0 items-center ${total > 7 ? "gap-1" : "gap-1.5"}`}
       role="progressbar"
       aria-label={`Раунд ${done} из ${total}`}
       aria-valuemin={0}
@@ -980,7 +1001,7 @@ function StepBar({ done, total }) {
       aria-valuenow={done}
     >
       {Array.from({ length: total }, (_, i) => (
-        <div key={i} className="relative h-1 w-7 overflow-hidden rounded-full bg-white/[0.08] sm:w-10">
+        <div key={i} className={`relative h-1 ${segment} overflow-hidden rounded-full bg-white/[0.08]`}>
           <motion.div
             className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#cfc3a8] to-[#ece3d2] shadow-[0_0_10px_rgba(226,215,195,0.5)]"
             initial={false}
@@ -1032,6 +1053,7 @@ export default function App() {
   const [insight, setInsight] = useState(initial.current.insight);
   const [insightNo, setInsightNo] = useState(initial.current.insightNo);
   const [manualFinish, setManualFinish] = useState(initial.current.finished);
+  const [totalSteps, setTotalSteps] = useState(initial.current.totalSteps);
   const [draft, setDraft] = useState(initial.current.draft);
   const [insightDraft, setInsightDraft] = useState("");
 
@@ -1081,13 +1103,15 @@ export default function App() {
   }, []);
   const userCount = messages.filter((m) => m.role === "user").length;
   const assistantCount = messages.filter((m) => m.role === "assistant").length;
-  const finished = assistantCount >= MAX_STEPS || manualFinish;
+  const finished = assistantCount >= totalSteps || manualFinish;
   const settled = !loading && typingId === null;
+  // номер шага, который сейчас разыгрывается: после финала — последний, иначе следующий ответ
+  const currentStep = Math.min(Math.max(finished ? userCount : assistantCount + 1, 1), totalSteps);
 
   useEffect(() => {
     if (messages.length === 0) writeLS(LS_SESSION, null);
-    else writeLS(LS_SESSION, { messages, insight, insightNo, finished: manualFinish });
-  }, [messages, insight, insightNo, manualFinish]);
+    else writeLS(LS_SESSION, { messages, insight, insightNo, finished: manualFinish, totalSteps });
+  }, [messages, insight, insightNo, manualFinish, totalSteps]);
 
   const scrollDown = useCallback(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -1116,7 +1140,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const content = await askLLM(history, step);
+      const content = await askLLM(history, step, totalSteps);
       if (rid !== reqRef.current) return; // диалог сожжён, пока шёл запрос
       const reply = { id: uid(), role: "assistant", content };
       setMessages((m) => [...m, reply]);
@@ -1151,6 +1175,20 @@ export default function App() {
     }
   };
 
+  const extendLock = useRef(false);
+  // блокировка снимается, когда финал закрылся и диалог снова идёт
+  useEffect(() => {
+    if (!finished) extendLock.current = false;
+  }, [finished]);
+
+  const extendDialog = () => {
+    if (loading || typingId !== null || extendLock.current) return;
+    extendLock.current = true; // два клика в одном тике видят одно и то же замыкание
+    setTotalSteps((t) => t + EXTEND_STEPS);
+    setManualFinish(false);
+    setError(null);
+  };
+
   const burn = () => {
     if (burning) return;
     reqRef.current++;
@@ -1161,6 +1199,7 @@ export default function App() {
       setInsight(null);
       setInsightNo(null);
       setManualFinish(false);
+      setTotalSteps(BASE_STEPS);
       setDraft("");
       setInsightDraft("");
       setLoading(false);
@@ -1327,7 +1366,7 @@ export default function App() {
                   className="pt-[8dvh] sm:pt-[12dvh]"
                 >
                   <p className={`mb-6 ${LABEL}`} style={MONO}>
-                    Приватная сессия · {MAX_STEPS} шага
+                    Приватная сессия · {BASE_STEPS} шага
                   </p>
                   <h1
                     className="text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.03em] min-[390px]:text-5xl sm:text-7xl"
@@ -1388,10 +1427,10 @@ export default function App() {
                   <div className="mb-8 flex items-center justify-between gap-3 sm:mb-10">
                     <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                       <span className={`whitespace-nowrap ${LABEL}`} style={MONO}>
-                        Шаг {String(Math.min(Math.max(userCount, 1), MAX_STEPS)).padStart(2, "0")} //{" "}
-                        {String(MAX_STEPS).padStart(2, "0")}
+                        Шаг {String(currentStep).padStart(2, "0")} //{" "}
+                        {String(totalSteps).padStart(2, "0")}
                       </span>
-                      <StepBar done={assistantCount} total={MAX_STEPS} />
+                      <StepBar done={assistantCount} total={totalSteps} />
                     </div>
                     {!finished && (
                       <motion.button
@@ -1601,9 +1640,14 @@ export default function App() {
                           <span className="text-[12px] text-zinc-500">
                             Всё это останется только в твоём браузере — пока ты не сожжёшь.
                           </span>
-                          <GhostButton onClick={burn} icon={Flame} danger>
-                            Сжечь диалог
-                          </GhostButton>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <GhostButton onClick={extendDialog} icon={Crosshair} accent>
+                              Вскрыть суть
+                            </GhostButton>
+                            <GhostButton onClick={burn} icon={Flame} danger>
+                              Сжечь диалог
+                            </GhostButton>
+                          </div>
                         </div>
                       </motion.div>
                     )}
