@@ -57,9 +57,8 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(id));
 }
 
-// Ключ задаётся в файле .env.local:  VITE_API_KEY=gsk_...
-const API_KEY = import.meta.env.VITE_API_KEY ?? "";
-const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Запросы идут через Netlify Function (netlify/functions/chat.js), ключ хранится только на сервере
+const API_URL = "/api/chat";
 const MODEL = import.meta.env.VITE_MODEL || "qwen/qwen3.8-27b"; // llama-3.3-70b-versatile недоступна для этого ключа
 
 // Newsreader / Instrument Serif не содержат кириллицы — для русских букв подхватывается Source Serif 4
@@ -148,8 +147,6 @@ function httpErrorMessage(status, detail) {
 }
 
 async function askLLM(history, step, totalSteps) {
-  if (!API_KEY) throw new Error("API-ключ не задан (VITE_API_KEY)");
-
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 25000);
 
@@ -157,10 +154,7 @@ async function askLLM(history, step, totalSteps) {
     const res = await fetch(API_URL, {
       method: "POST",
       signal: ctrl.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.85,
