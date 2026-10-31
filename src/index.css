@@ -48,6 +48,22 @@ summary {
   }
 }
 
+/* Микро-пружина нажатия для обычных <button> (motion.button делает это через whileTap).
+   Класс не в @layer, поэтому перекрывает tailwind-transition: цвет перечислен здесь явно. */
+.sdv-btn-press {
+  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.4, 1), opacity 120ms ease,
+    color 300ms ease;
+  transform: translateZ(0);
+}
+.sdv-btn-press:active {
+  transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sdv-btn-press:active {
+    transform: none;
+  }
+}
+
 /* Ползунок громкости в палитре приложения */
 .sdv-range {
   -webkit-appearance: none;

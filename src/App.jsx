@@ -948,7 +948,7 @@ function Composer({
           onClick={onSubmit}
           disabled={off}
           whileHover={off ? undefined : { y: -1 }}
-          whileTap={off ? undefined : { scale: 0.98 }}
+          whileTap={off ? undefined : { scale: 0.96 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
           aria-label={submitLabel}
           className={`group ml-auto inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full pl-5 pr-3 text-[13px] font-medium tracking-tight transition-[background,box-shadow,color] duration-300 ${
@@ -982,7 +982,7 @@ function GhostButton({ children, onClick, icon: Icon, danger, accent, disabled }
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileTap={disabled ? undefined : { scale: 0.98 }}
+      whileTap={disabled ? undefined : { scale: 0.96 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       className={`inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-[13px] transition-[border-color,background-color,color] duration-300 ${
         disabled
@@ -1496,7 +1496,8 @@ export default function App() {
                     </div>
                     {!finished && (
                       <motion.button
-                        whileTap={{ scale: 0.98 }}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
                         onClick={burn}
                         className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-widest text-zinc-500 transition-colors hover:text-red-300"
                         style={MONO}
@@ -1629,7 +1630,7 @@ export default function App() {
                               onClick={copyConclusion}
                               aria-label="Копировать заключение Сократа"
                               title="Копировать заключение"
-                              className="-mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-widest text-[#e2d7c3]/60 transition-colors duration-300 hover:text-[#e2d7c3]"
+                              className="sdv-btn-press -mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-widest text-[#e2d7c3]/60 hover:text-[#e2d7c3]"
                               style={MONO}
                             >
                               {copiedConclusion ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
