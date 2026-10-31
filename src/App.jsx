@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { toBlob } from "html-to-image";
 import Header from "./Header";
+import { hapticDeep, hapticTap, hapticWarning } from "./utils/haptics";
 import {
   ArrowUp,
   Check,
@@ -31,6 +32,7 @@ const MAX_TOTAL_STEPS = 10; // максимум два продления «Вс
 const MIN_STEPS_TO_FINISH = 3; // с какого шага можно завершить досрочно
 
 const LS_SESSION = "sdv.session.v1";
+const BURN_MS = 1000; // длительность ритуала сожжения
 const LS_COUNTER = "sdv.counter.v1";
 const LS_SOUND = "sdv.sound.v1";
 
@@ -675,6 +677,16 @@ function GlobalStyles() {
       .sdv-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px }
       .sdv-root ::selection { background: #e2d7c3; color: #131518 }
       .sdv-root textarea::placeholder { color: #5b5f68 }
+      @keyframes sdv-ash {
+        0% { opacity: .55; transform: translate3d(0, 0, 0) }
+        20% { opacity: .9; transform: translate3d(-1.5%, -2%, 0) }
+        40% { opacity: .5; transform: translate3d(1%, -4%, 0) }
+        60% { opacity: .85; transform: translate3d(-1%, -6%, 0) }
+        80% { opacity: .45; transform: translate3d(1.5%, -8%, 0) }
+        100% { opacity: .7; transform: translate3d(0, -10%, 0) }
+      }
+      .sdv-ash { animation: sdv-ash 1.1s steps(7, end) infinite; }
+      @media (prefers-reduced-motion: reduce) { .sdv-ash { animation: none } }
     `}</style>
   );
 }
@@ -1063,6 +1075,7 @@ export default function App() {
   const [typingId, setTypingId] = useState(null);
   const [burning, setBurning] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedConclusion, setCopiedConclusion] = useState(false);
   const [cardFormat, setCardFormat] = useState("story");
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -1071,6 +1084,16 @@ export default function App() {
   const endRef = useRef(null);
   const cardRef = useRef(null);
   const toastTimer = useRef(null);
+  const burnTimer = useRef(null);
+  const copyTimer = useRef(null);
+
+  useEffect(
+    () => () => {
+      clearTimeout(burnTimer.current);
+      clearTimeout(copyTimer.current);
+    },
+    []
+  );
 
   const [sound, setSound] = useState(loadSoundSettings);
   const soundRef = useRef(sound);
@@ -1156,8 +1179,9 @@ export default function App() {
 
   const send = () => {
     const text = draft.trim();
-    if (!text || loading || typingId !== null || finished || error) return;
+    if (!text || loading || typingId !== null || finished || error || burning) return;
 
+    hapticTap();
     const history = [...messages, { id: uid(), role: "user", content: text }];
     setMessages(history);
     setDraft("");
@@ -1165,7 +1189,7 @@ export default function App() {
   };
 
   const retry = () => {
-    if (loading) return;
+    if (loading || burning) return;
     requestReply(messages);
   };
 
@@ -1184,8 +1208,9 @@ export default function App() {
 
   const extendDialog = () => {
     if (totalSteps >= MAX_TOTAL_STEPS) return;
-    if (loading || typingId !== null || extendLock.current) return;
+    if (loading || burning || typingId !== null || extendLock.current) return;
     extendLock.current = true; // два клика в одном тике видят одно и то же замыкание
+    hapticDeep();
     setTotalSteps((t) => t + EXTEND_STEPS);
     setManualFinish(false);
     setError(null);
@@ -1193,10 +1218,14 @@ export default function App() {
 
   const burn = () => {
     if (burning) return;
-    reqRef.current++;
+    hapticWarning();
+    reqRef.current++; // отменяет любой запрос в полёте
+    document.activeElement?.blur?.();
+    writeLS(LS_SESSION, null); // необратимо: даже если вкладку закроют посреди анимации
     setBurning(true);
     if (!sound.muted && sound.ui) audio.burn();
-    setTimeout(() => {
+    clearTimeout(burnTimer.current);
+    burnTimer.current = setTimeout(() => {
       setMessages([]);
       setInsight(null);
       setInsightNo(null);
@@ -1209,10 +1238,11 @@ export default function App() {
       setTypingId(null);
       setBurning(false);
       window.scrollTo({ top: 0 });
-    }, 900);
+    }, BURN_MS);
   };
 
   const saveInsight = () => {
+    if (burning) return;
     const t = insightDraft.trim();
     if (!t) return;
     setInsight(t);
@@ -1294,6 +1324,24 @@ export default function App() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
 
+  const conclusion = useMemo(() => {
+    const last = [...messages].reverse().find((m) => m.role === "assistant");
+    return typeof last?.content === "string" ? last.content.trim() : "";
+  }, [messages]);
+
+  const copyConclusion = async () => {
+    if (!conclusion || burning) return;
+    try {
+      await navigator.clipboard.writeText(conclusion);
+      hapticTap();
+      setCopiedConclusion(true);
+      clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopiedConclusion(false), 1600);
+    } catch {
+      /* clipboard недоступен */
+    }
+  };
+
   const copyInsight = async () => {
     try {
       await navigator.clipboard.writeText(insight);
@@ -1328,6 +1376,29 @@ export default function App() {
           style={{ backgroundImage: GRAIN, backgroundSize: "320px 320px" }}
         />
 
+        {/* ритуал сожжения: тьма с пепельным мерцанием; перехватывает все нажатия */}
+        <AnimatePresence>
+          {burning && (
+            <motion.div
+              key="burn-veil"
+              aria-hidden
+              className="fixed inset-0 z-[90] overflow-hidden bg-black"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, transition: { duration: BURN_MS / 1000, ease: "easeInOut" } }}
+              exit={{ opacity: 0, transition: { duration: 0.6, ease: "easeOut" } }}
+            >
+              <div
+                className="sdv-ash absolute -inset-[12%] opacity-60"
+                style={{
+                  backgroundImage: `radial-gradient(circle at 50% 70%, rgba(226,215,195,0.10), transparent 55%), ${GRAIN}`,
+                  backgroundSize: "auto, 160px 160px",
+                  mixBlendMode: "screen",
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* шапка */}
         <Header
           status={
@@ -1339,10 +1410,11 @@ export default function App() {
           {audio.supported() && <SoundControl sound={sound} onToggleMuted={toggleMuted} onChange={changeSound} />}
         </Header>
 
-        <main className="relative z-10 mx-auto max-w-3xl pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        <main inert={burning ? "" : undefined} className="relative z-10 mx-auto max-w-3xl pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pb-[calc(6rem+env(safe-area-inset-bottom))]">
           <motion.div
-            animate={burning ? { opacity: 0, filter: "blur(14px)", y: -10, scale: 0.985 } : { opacity: 1, filter: "blur(0px)", y: 0, scale: 1 }}
-            transition={{ duration: 0.85, ease: [0.4, 0, 0.2, 1] }}
+            animate={burning ? { opacity: 0, filter: "blur(14px) brightness(0.4)", y: -10, scale: 0.985 } : { opacity: 1, filter: "blur(0px) brightness(1)", y: 0, scale: 1 }}
+            transition={{ duration: burning ? BURN_MS / 1000 : 0.6, ease: [0.4, 0, 0.2, 1] }}
+            aria-hidden={burning || undefined}
           >
             <AnimatePresence mode="wait" initial={false}>
               {!hasSession ? (
@@ -1547,9 +1619,24 @@ export default function App() {
                         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                         className="mt-14 border-t border-white/[0.08] pt-10"
                       >
-                        <p className={`mb-4 ${LABEL}`} style={MONO}>
-                          Дуэль окончена
-                        </p>
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <p className={LABEL} style={MONO}>
+                            Дуэль окончена
+                          </p>
+                          {conclusion && (
+                            <button
+                              type="button"
+                              onClick={copyConclusion}
+                              aria-label="Копировать заключение Сократа"
+                              title="Копировать заключение"
+                              className="-mr-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-widest text-[#e2d7c3]/60 transition-colors duration-300 hover:text-[#e2d7c3]"
+                              style={MONO}
+                            >
+                              {copiedConclusion ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                              {copiedConclusion ? "Скопировано" : "Суть"}
+                            </button>
+                          )}
+                        </div>
 
                         {insight ? (
                           <div className="rounded-2xl border border-[#e2d7c3]/20 border-t-[#e2d7c3]/40 bg-[#e2d7c3]/[0.04] p-5 shadow-[0_24px_64px_-24px_rgba(226,215,195,0.18)] backdrop-blur-xl sm:p-7">
@@ -1639,7 +1726,7 @@ export default function App() {
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               {totalSteps < MAX_TOTAL_STEPS && (
                                 <GhostButton onClick={extendDialog} icon={Crosshair} accent>
-                                  Вскрыть суть
+                                  {totalSteps === BASE_STEPS ? "Вскрыть суть" : "Снять защиту"}
                                 </GhostButton>
                               )}
                               <GhostButton onClick={burn} icon={Flame} danger>

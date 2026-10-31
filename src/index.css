@@ -7,22 +7,34 @@ body,
   background: #131518;
 }
 
+html,
+body,
+#root {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-x pan-y;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  overscroll-behavior-y: none;
   font-family: "Geist", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 button,
-[role="radio"] {
+[role="radio"],
+[role="button"],
+a,
+summary {
   touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Плавное расширение поля ввода (высоту выставляет AutoTextarea) */
