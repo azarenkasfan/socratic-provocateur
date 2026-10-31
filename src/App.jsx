@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { toBlob } from "html-to-image";
+import Header from "./Header";
 import {
   ArrowUp,
   Check,
@@ -26,7 +27,7 @@ import {
 
 const BASE_STEPS = 4; // базовая длина дуэли
 const EXTEND_STEPS = 3; // на сколько шагов продлевает «Вскрыть суть»
-const MAX_TOTAL_STEPS = 100; // защита от испорченного localStorage
+const MAX_TOTAL_STEPS = 10; // максимум два продления «Вскрыть суть»; также защита от испорченного localStorage
 const MIN_STEPS_TO_FINISH = 3; // с какого шага можно завершить досрочно
 
 const LS_SESSION = "sdv.session.v1";
@@ -757,7 +758,7 @@ function SoundControl({ sound, onToggleMuted, onChange }) {
     "flex h-9 items-center justify-center rounded-full transition-colors duration-300 [@media(pointer:coarse)]:h-11";
 
   return (
-    <div ref={rootRef} className="relative ml-auto flex shrink-0 items-center sm:ml-0">
+    <div ref={rootRef} className="relative flex shrink-0 items-center">
       <div className="flex items-center rounded-full border border-white/[0.08] border-t-white/[0.14] bg-white/[0.04] p-0.5 shadow-[0_4px_16px_-6px_rgba(0,0,0,0.6)] backdrop-blur-md">
         <motion.button
           type="button"
@@ -792,7 +793,7 @@ function SoundControl({ sound, onToggleMuted, onChange }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-full z-40 mt-2 w-60 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-white/[0.06] border-t-white/[0.12] bg-[#1a1d22]/90 p-3.5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:left-0 sm:right-auto"
+            className="absolute right-0 top-full z-40 mt-2 w-60 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-white/[0.06] border-t-white/[0.12] bg-[#1a1d22]/90 p-3.5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
           >
             <p className={`mb-1 ${LABEL}`} style={MONO}>
               Звук
@@ -1182,6 +1183,7 @@ export default function App() {
   }, [finished]);
 
   const extendDialog = () => {
+    if (totalSteps >= MAX_TOTAL_STEPS) return;
     if (loading || typingId !== null || extendLock.current) return;
     extendLock.current = true; // два клика в одном тике видят одно и то же замыкание
     setTotalSteps((t) => t + EXTEND_STEPS);
@@ -1327,27 +1329,15 @@ export default function App() {
         />
 
         {/* шапка */}
-        <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#131518]/60 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
-          <div className="mx-auto flex max-w-3xl items-center py-2 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:pr-[max(1.5rem,env(safe-area-inset-right))]">
-            <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/[0.06] border-t-white/[0.12] bg-white/[0.04] text-[13px] text-[#e2d7c3]"
-                style={SERIF}
-              >
-                Σ
-              </span>
-              <span
-                className="truncate text-[15px] font-semibold tracking-[-0.03em] sm:text-base"
-                style={{ ...DISPLAY, ...TITLE_GRADIENT }}
-              >
-                Сократический провокатор
-              </span>
-              {audio.supported() && (
-                <SoundControl sound={sound} onToggleMuted={toggleMuted} onChange={changeSound} />
-              )}
-            </div>
-          </div>
-        </header>
+        <Header
+          status={
+            hasSession
+              ? `${String(currentStep).padStart(2, "0")}/${String(totalSteps).padStart(2, "0")}`
+              : `${BASE_STEPS} ШАГА`
+          }
+        >
+          {audio.supported() && <SoundControl sound={sound} onToggleMuted={toggleMuted} onChange={changeSound} />}
+        </Header>
 
         <main className="relative z-10 mx-auto max-w-3xl pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] pb-[calc(6rem+env(safe-area-inset-bottom))]">
           <motion.div
@@ -1640,13 +1630,22 @@ export default function App() {
                           <span className="text-[12px] text-zinc-500">
                             Всё это останется только в твоём браузере — пока ты не сожжёшь.
                           </span>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <GhostButton onClick={extendDialog} icon={Crosshair} accent>
-                              Вскрыть суть
-                            </GhostButton>
-                            <GhostButton onClick={burn} icon={Flame} danger>
-                              Сжечь диалог
-                            </GhostButton>
+                          <div className="flex flex-col items-end gap-2">
+                            {totalSteps >= MAX_TOTAL_STEPS && (
+                              <span className="text-[12px]" style={{ color: BRASS, opacity: 0.7 }}>
+                                Суть обнажена. Слова закончились — время действовать.
+                              </span>
+                            )}
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              {totalSteps < MAX_TOTAL_STEPS && (
+                                <GhostButton onClick={extendDialog} icon={Crosshair} accent>
+                                  Вскрыть суть
+                                </GhostButton>
+                              )}
+                              <GhostButton onClick={burn} icon={Flame} danger>
+                                Сжечь диалог
+                              </GhostButton>
+                            </div>
                           </div>
                         </div>
                       </motion.div>
