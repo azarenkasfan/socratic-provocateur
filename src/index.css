@@ -20,6 +20,23 @@ html {
   text-size-adjust: 100%;
 }
 
+/* Кинематографичный скролл к новым репликам */
+html,
+.sdv-scroll {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html,
+  .sdv-scroll {
+    scroll-behavior: auto;
+  }
+}
+
+/* «Воздух» под якорем автоскролла: реплика не липнет к полю ввода */
+.sdv-scroll-anchor {
+  scroll-margin-bottom: 2rem;
+}
+
 body {
   font-family: "Geist", "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -61,6 +78,30 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   .sdv-btn-press:active {
     transform: none;
+  }
+}
+
+/* «Печать»: разовое микро-свечение контура при копировании сути */
+@keyframes sdv-seal-pulse {
+  0% {
+    border-color: rgba(217, 119, 6, 0.2);
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.25);
+  }
+  30% {
+    border-color: rgba(245, 158, 11, 0.85);
+    box-shadow: 0 0 16px 2px rgba(245, 158, 11, 0.2);
+  }
+  100% {
+    border-color: rgba(217, 119, 6, 0.2);
+    box-shadow: 0 0 0 0 rgba(217, 119, 6, 0);
+  }
+}
+.sdv-sealed {
+  animation: sdv-seal-pulse 1100ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sdv-sealed {
+    animation: none;
   }
 }
 

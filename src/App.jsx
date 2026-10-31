@@ -1076,6 +1076,7 @@ export default function App() {
   const [burning, setBurning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedConclusion, setCopiedConclusion] = useState(false);
+  const [isSealed, setIsSealed] = useState(false);
   const [cardFormat, setCardFormat] = useState("story");
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -1086,11 +1087,13 @@ export default function App() {
   const toastTimer = useRef(null);
   const burnTimer = useRef(null);
   const copyTimer = useRef(null);
+  const sealTimer = useRef(null);
 
   useEffect(
     () => () => {
       clearTimeout(burnTimer.current);
       clearTimeout(copyTimer.current);
+      clearTimeout(sealTimer.current);
     },
     []
   );
@@ -1329,6 +1332,8 @@ export default function App() {
     return typeof last?.content === "string" ? last.content.trim() : "";
   }, [messages]);
 
+  const lastAssistantId = useMemo(() => [...messages].reverse().find((m) => m.role === "assistant")?.id, [messages]);
+
   const copyConclusion = async () => {
     if (!conclusion || burning) return;
     try {
@@ -1337,6 +1342,11 @@ export default function App() {
       setCopiedConclusion(true);
       clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopiedConclusion(false), 1600);
+      // сброс на кадр, чтобы повторное копирование заново запускало анимацию
+      clearTimeout(sealTimer.current);
+      setIsSealed(false);
+      requestAnimationFrame(() => setIsSealed(true));
+      sealTimer.current = setTimeout(() => setIsSealed(false), 1200);
     } catch {
       /* clipboard недоступен */
     }
@@ -1531,7 +1541,9 @@ export default function App() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.4 }}
-                          className={`relative overflow-hidden rounded-2xl p-5 sm:p-7 ${GLASS}`}
+                          className={`relative overflow-hidden rounded-2xl p-5 sm:p-7 ${GLASS} ${
+                            isSealed && finished && m.id === lastAssistantId ? "sdv-sealed" : ""
+                          }`}
                         >
                           <div
                             aria-hidden
@@ -1740,7 +1752,7 @@ export default function App() {
                     )}
                   </AnimatePresence>
 
-                  <div ref={endRef} className="h-px" />
+                  <div ref={endRef} className="sdv-scroll-anchor scroll-mb-8 h-px" />
                 </motion.section>
               )}
             </AnimatePresence>
