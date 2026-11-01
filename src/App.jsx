@@ -582,7 +582,7 @@ const InsightCard = React.forwardRef(function InsightCard({ format, original, in
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <span style={{ width: 56, height: 1, background: "#e2d7c3", display: "block" }} />
           <span style={{ ...DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: "-0.03em", color: "#f4f4f5" }}>
-            Сократический провокатор
+            SoSocrates
           </span>
           <span style={{ ...MONO, fontSize: 20, letterSpacing: "0.22em", color: "#e2d7c3", textTransform: "uppercase", opacity: 0.8 }}>
             Артефакт мысли
@@ -856,7 +856,7 @@ function Thinking() {
           transition={{ duration: 0.25 }}
           className="min-w-0"
         >
-          провокатор размышляет — {THINKING_PHRASES[i]}
+          SoSocrates размышляет — {THINKING_PHRASES[i]}
         </motion.span>
       </AnimatePresence>
     </div>
@@ -1288,7 +1288,7 @@ export default function App() {
       };
       const blob = await withTimeout(render(), EXPORT_TIMEOUT_MS, "превышено время ожидания");
 
-      const filename = `socratic-insight-${new Date().toISOString().slice(0, 10)}-${cardFormat === "story" ? "9x16" : "1x1"}.png`;
+      const filename = `sosocrates-insight-${new Date().toISOString().slice(0, 10)}-${cardFormat === "story" ? "9x16" : "1x1"}.png`;
 
       // iOS (особенно с домашнего экрана) не умеет надёжно скачивать файлы — отдаём в системное меню «Поделиться / Сохранить»
       if (IS_IOS && navigator.canShare) {
@@ -1545,7 +1545,7 @@ export default function App() {
                           />
                                                       <p className={`mb-3 flex items-center gap-2 ${LABEL} text-[#e2d7c3]/80`} style={MONO}>
                                                         <span className="h-1 w-1 rounded-full bg-[#e2d7c3] shadow-[0_0_8px_rgba(226,215,195,0.7)]" />
-                            Провокатор
+                            SoSocrates
                           </p>
                           <p
                             className="whitespace-pre-wrap break-words text-xl leading-relaxed sm:text-[28px]"

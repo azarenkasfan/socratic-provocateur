@@ -12,11 +12,11 @@ export default function Header({ status, children }) {
             <span className="font-serif text-base font-semibold leading-none select-none text-[#e2d7c3]">Σ</span>
           </div>
           <div className="flex min-w-0 flex-col">
-            <span className="font-mono text-xs uppercase leading-none tracking-[0.22em] text-[#e2d7c3]">
-              Socratic
+            <span className="font-mono text-sm font-semibold uppercase leading-none tracking-widest text-[#e2d7c3]">
+              SoSocrates
             </span>
             <span className="mt-1 text-[9px] uppercase leading-none tracking-[0.18em] text-[#e2d7c3]/40">
-              Provocateur
+              Mental Sparring
             </span>
           </div>
         </div>
